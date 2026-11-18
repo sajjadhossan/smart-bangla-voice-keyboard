@@ -1,0 +1,28 @@
+# Guarded: manual trigger only. This job has NOT been run locally.
+name: macOS InputMethodKit build (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS IME bundle
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate -s macos/project.yml -p macos
+
+      - name: Build
+        run: >-
+          xcodebuild -project macos/SmartBanglaVoiceKeyboard.xcodeproj
+          -scheme SmartBanglaVoiceKeyboard -configuration Release
+          -derivedDataPath macos/build CODE_SIGNING_ALLOWED=NO
+
+      - name: Verify bundle exists
+        run: test -d macos/build/Build/Products/Release/SmartBanglaVoiceKeyboard.bundle

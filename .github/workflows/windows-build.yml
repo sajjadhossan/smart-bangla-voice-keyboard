@@ -1,0 +1,26 @@
+# Guarded: manual trigger only. This job has NOT been run locally.
+name: Windows TSF build (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows TSF DLL
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S windows -B windows/build -A x64
+
+      - name: Build
+        run: cmake --build windows/build --config Release
+
+      - name: Verify artifact exists
+        shell: pwsh
+        run: |
+          $dll = "windows/build/Release/SmartBanglaIme.dll"
+          if (-not (Test-Path $dll)) { throw "Expected DLL not found: $dll" }
+          Write-Host "Built: $dll"

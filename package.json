@@ -1,0 +1,16 @@
+{
+  "name": "smart-bangla-voice-keyboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart Bangla Voice Keyboard — shared offline core (স্মার্ট বাংলা ভয়েস কীবোর্ড)",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/unit/*.test.ts tests/integration/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch tests/unit/*.test.ts tests/integration/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 --test tests/unit/*.test.ts tests/integration/*.test.ts",
+    "test:wer": "node --experimental-strip-types scripts/test-wer.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

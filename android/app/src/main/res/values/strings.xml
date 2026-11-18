@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Smart Bangla Voice Keyboard</string>
+    <string name="ime_name">Smart Bangla Voice Keyboard (Bangla)</string>
+    <string name="suggestion_word">.word</string>
+    <string name="suggestion_ai">AI</string>
+    <string name="suggestion_mic">mic</string>
+    <string name="suggestion_language">BN</string>
+    <string name="key_backspace">⌫</string>
+    <string name="key_enter">↵</string>
+    <string name="key_space">space</string>
+    <string name="key_shift">^</string>
+    <string name="key_layer"> vowel </string>
+    <string name="ai_format">Format text</string>
+    <string name="ai_shorter">Make shorter</string>
+    <string name="ai_apply">Apply</string>
+    <string name="ai_cancel">Cancel</string>
+    <string name="ai_preview_title">Preview change</string>
+    <string name="voice_prompt">বলুন…</string>
+    <string name="voice_unavailable">Speech recognizer unavailable</string>
+</resources>

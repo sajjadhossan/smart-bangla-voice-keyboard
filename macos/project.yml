@@ -1,0 +1,20 @@
+name: SmartBanglaVoiceKeyboard
+options:
+  bundleIdPrefix: com.smartbangla
+  deploymentTarget:
+    macOS: "12.0"
+
+targets:
+  SmartBanglaVoiceKeyboard:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: SmartBanglaVoiceKeyboard
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.smartbangla.voicekeyboard
+      INFOPLIST_FILE: SmartBanglaVoiceKeyboard/Info.plist
+      PRODUCT_NAME: SmartBanglaVoiceKeyboard
+      SWIFT_VERSION: "5.9"
+      CODE_SIGN_IDENTITY: "-"
+      CODE_SIGNING_ALLOWED: NO
+      SKIP_INSTALL: YES

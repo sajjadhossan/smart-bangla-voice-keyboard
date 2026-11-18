@@ -1,0 +1,5 @@
+{
+  "version": "1",
+  "note": "Recorded/reference transcripts for voice modes A-F. hypothesis and endOfSpeechToFinalMs MUST come from a real recorded engine run; never fabricate them.",
+  "samples": []
+}

@@ -1,0 +1,34 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# Build outputs
+build/
+.gradle/
+local.properties
+dist/
+node_modules/
+*.apk
+*.aab
+*.msi
+*.exe
+*.dmg
+*.app/
+*.pkg
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Test artifacts
+coverage/
+.reports/

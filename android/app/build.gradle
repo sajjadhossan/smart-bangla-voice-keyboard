@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// Release signing is ONLY possible when all four secrets are injected from the
+// environment. No keystore, alias or password is ever stored in this repository.
+def releaseKs = System.getenv('ANDROID_KEYSTORE_FILE')
+def releasePass = System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: ''
+def releaseAlias = System.getenv('ANDROID_KEY_ALIAS') ?: ''
+def releaseKeyPass = System.getenv('ANDROID_KEY_PASSWORD') ?: ''
+def canSignRelease = releaseKs != null && releaseKs != '' &&
+        releasePass != '' && releaseAlias != '' && releaseKeyPass != ''
+
+android {
+    namespace 'com.smartbangla.voicekeyboard'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.smartbangla.voicekeyboard'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (canSignRelease) {
+                storeFile file(releaseKs)
+                storePassword releasePass
+                keyAlias releaseAlias
+                keyPassword releaseKeyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (canSignRelease) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

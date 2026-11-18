@@ -1,0 +1,24 @@
+HKCR
+{
+    NoRemove CLSID
+    {
+        ForceRemove {6E7A1C31-5B0D-4D5E-9A31-2C7F0B3E9D41} = s 'Smart Bangla Voice Keyboard IME'
+        {
+            ProgID = s 'SmartBanglaIme.CBanglaIme.1'
+            VersionIndependentProgID = s 'SmartBanglaIme.CBanglaIme'
+            ForceRemove 'Programmable'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Apartment'
+            }
+        }
+    }
+    SmartBanglaIme.CBanglaIme.1 = s 'Smart Bangla Voice Keyboard IME'
+    {
+        CLSID = s '{6E7A1C31-5B0D-4D5E-9A31-2C7F0B3E9D41}'
+    }
+    SmartBanglaIme.CBanglaIme = s 'Smart Bangla Voice Keyboard IME'
+    {
+        CurVer = s 'SmartBanglaIme.CBanglaIme.1'
+    }
+}

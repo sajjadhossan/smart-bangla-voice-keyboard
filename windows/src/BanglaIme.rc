@@ -1,0 +1,8 @@
+#include "resource.h"
+
+1 TYPELIB "BanglaIme.rgs"
+
+STRINGTABLE
+BEGIN
+    IDS_PROJNAME "Smart Bangla Voice Keyboard"
+END

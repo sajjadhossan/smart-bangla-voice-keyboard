@@ -1,0 +1,26 @@
+# Core shared logic — runs on every push/PR. No platform SDK or secrets needed.
+name: Core tests (Linux)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Unit + integration tests and 80% coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Unit + integration tests
+        run: npm test
+
+      - name: Coverage gate (>=80% lines, branches, functions)
+        run: npm run test:coverage
