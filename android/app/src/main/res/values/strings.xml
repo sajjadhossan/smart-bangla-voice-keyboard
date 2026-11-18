@@ -54,4 +54,35 @@
     <string name="btn_back">back</string>
     <string name="btn_discard">Discard</string>
     <string name="btn_retry">Retry</string>
+
+    <!-- Top toolbar (mic pinned top-right) -->
+    <string name="tool_clipboard">Clip</string>
+    <string name="tool_lang">Lang</string>
+    <string name="tool_translate">Tr</string>
+    <string name="tool_mic">🎤 mic</string>
+
+    <!-- Language / typing mode -->
+    <string name="lang_title">Language mode</string>
+    <string name="lang_bn">বাংলা (Bangla)</string>
+    <string name="lang_en">English</string>
+    <string name="lang_banglish">বাংলিশ (roman → বাংলা)</string>
+
+    <!-- Unlimited clipboard -->
+    <string name="clip_title">Clipboard · %1$d saved</string>
+    <string name="clip_copy">Copy field</string>
+    <string name="clip_clear">Clear</string>
+    <string name="clip_more">…+%1$d more saved</string>
+    <string name="clip_empty">No clips yet — copy something</string>
+
+    <!-- Mic source language -->
+    <string name="voice_source_title">Speak which language?</string>
+    <string name="voice_src_bn">বাংলা বলুন</string>
+    <string name="voice_src_en">English speak</string>
+    <string name="voice_src_banglish">বাংলিশ বলুন</string>
+    <string name="voice_heard">heard: %1$s</string>
+
+    <!-- Translate menu -->
+    <string name="translate_title">Translate text</string>
+    <string name="tr_bn_en">বাংলা → English</string>
+    <string name="tr_en_bn">English → বাংলা</string>
 </resources>

@@ -8,7 +8,70 @@
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
-    <!-- Suggestion bar: word / transliteration suggestions + AI + mic + language -->
+    <!-- Top toolbar. The mic is pinned to the far RIGHT (top-right of the keyboard)
+         via the weight-1 spacer before it. All four buttons are wired in BanglaVoiceIme. -->
+    <LinearLayout
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="4dp">
+
+        <Button
+            android:id="@+id/btnClipboard"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:textSize="12sp"
+            android:textAllCaps="false"
+            android:text="@string/tool_clipboard" />
+
+        <Button
+            android:id="@+id/btnLang"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:textSize="12sp"
+            android:textAllCaps="false"
+            android:text="@string/tool_lang" />
+
+        <Button
+            android:id="@+id/btnTranslate"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:textSize="12sp"
+            android:textAllCaps="false"
+            android:text="@string/tool_translate" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnMic"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:textSize="12sp"
+            android:textAllCaps="false"
+            android:text="@string/tool_mic" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#DDDDDD" />
+
+    <!-- Suggestion bar: word / transliteration suggestions + AI + language -->
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="44dp"

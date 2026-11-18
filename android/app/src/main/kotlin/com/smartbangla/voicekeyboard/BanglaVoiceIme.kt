@@ -3,6 +3,7 @@ package com.smartbangla.voicekeyboard
 import android.app.PendingIntent
 import android.inputmethodservice.InputMethodService
 import android.content.BroadcastReceiver
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -14,6 +15,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.widget.Button
 import android.widget.LinearLayout
@@ -21,21 +23,32 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Real system-wide input method. Offline typing works with the network off;
- * voice and any egress require explicit, revocable consent stored encrypted.
- * Corrections are always previewed and applied only on an explicit tap.
+ * Real system-wide input method.
+ *
+ * Top toolbar (mic pinned top-right): Clipboard · Lang · Translate · Mic.
+ * Offline typing works with the network off. Voice capture, clipboard and any
+ * Gemini translation require the relevant explicit consent; results are always
+ * previewed before insert. No decorative buttons.
  */
 class BanglaVoiceIme : InputMethodService() {
 
     private lateinit var suggestionBar: LinearLayout
+    private lateinit var btnClipboard: Button
+    private lateinit var btnLang: Button
+    private lateinit var btnTranslate: Button
+    private lateinit var btnMic: Button
     private val keyRows = arrayOfNulls<LinearLayout>(4)
+
+    // Typing mode: bn (Bengali script), en (English), banglish (roman → Bengali).
     private var language = "bn"
     private var layer = BanglaKeys.LAYER_LETTERS
     private var shifted = false
     private var pendingText: String? = null
-    // Translation direction for the active voice flow: C = Bangla speech → English,
-    // D = English speech → Bengali. Matches the shared voice-mode vocabulary.
-    private var pendingMode = "C"
+
+    // Language the user WILL SPEAK into the mic: bn | en | banglish.
+    private var pendingVoiceSource = "bn"
+    private var pendingTranslateText: String? = null
+    private var pendingTranslateMode = "C"
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val voiceReceiver = object : BroadcastReceiver() {
@@ -46,12 +59,23 @@ class BanglaVoiceIme : InputMethodService() {
                 showBarText(getString(R.string.voice_unavailable))
                 return
             }
-            renderVoiceResult(heard, pendingMode)
+            // Banglish speech is recognized as romanized text, then converted offline.
+            val shown = if (pendingVoiceSource == "banglish") Banglish.toBangla(heard) else heard
+            renderTranscript(shown)
         }
+    }
+
+    /** Real clipboard monitor — captures every copy while this IME is active. */
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        val manager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return@OnPrimaryClipChangedListener
+        val text = manager.primaryClip?.getItemAt(0)?.text?.toString()?.trim().orEmpty()
+        if (text.isNotEmpty()) ClipboardStore.add(text)
     }
 
     override fun onCreate() {
         super.onCreate()
+        ClipboardStore.init(this)
         val filter = IntentFilter(ACTION_VOICE_RESULT)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(voiceReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -59,26 +83,40 @@ class BanglaVoiceIme : InputMethodService() {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(voiceReceiver, filter)
         }
+        (getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)
+            ?.addPrimaryClipChangedListener(clipboardListener)
     }
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(voiceReceiver) }
+        (getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)
+            ?.removePrimaryClipChangedListener(clipboardListener)
         super.onDestroy()
     }
 
     override fun onCreateInputView(): View {
         val view = LayoutInflater.from(this).inflate(R.layout.keyboard_view, null)
+        btnClipboard = view.findViewById(R.id.btnClipboard)
+        btnLang = view.findViewById(R.id.btnLang)
+        btnTranslate = view.findViewById(R.id.btnTranslate)
+        btnMic = view.findViewById(R.id.btnMic)
         suggestionBar = view.findViewById(R.id.suggestionBar)
         keyRows[0] = view.findViewById(R.id.keyRow1)
         keyRows[1] = view.findViewById(R.id.keyRow2)
         keyRows[2] = view.findViewById(R.id.keyRow3)
         keyRows[3] = view.findViewById(R.id.keyRow4)
+
+        btnClipboard.setOnClickListener { showClipboardPanel() }
+        btnLang.setOnClickListener { showLanguageMenu() }
+        btnTranslate.setOnClickListener { showTranslateMenu(currentText()) }
+        btnMic.setOnClickListener { onMicTapped() }
+
         renderKeys()
         renderDefaultSuggestions()
         return view
     }
 
-    override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         pendingText = null
         renderDefaultSuggestions()
@@ -87,7 +125,7 @@ class BanglaVoiceIme : InputMethodService() {
     // ---------- key rendering ----------
 
     private fun renderKeys() {
-        val rows = BanglaKeys.rows(layer, language)
+        val rows = BanglaKeys.rows(layer, if (language == "bn") "bn" else "en")
         for (index in 0..2) {
             val container = keyRows[index] ?: continue
             container.removeAllViews()
@@ -97,35 +135,48 @@ class BanglaVoiceIme : InputMethodService() {
         }
         val controls = keyRows[3] ?: return
         controls.removeAllViews()
-        val layerLabel = if (language == "en") "123" else getString(R.string.key_layer)
+        val layerLabel = if (language == "bn") getString(R.string.key_layer) else "123"
         controls.addView(makeKey(layerLabel, 1.2f) { cycleLayer() })
         controls.addView(makeKey(getString(R.string.key_shift), 1f) {
             shifted = !shifted
             renderKeys()
         })
-        controls.addView(makeKey(if (language == "bn") "EN" else "BN", 1f) {
-            language = if (language == "bn") "en" else "bn"
-            layer = BanglaKeys.LAYER_LETTERS
-            renderKeys()
-            renderDefaultSuggestions()
-        })
-        controls.addView(makeKey(getString(R.string.key_space), 3f) { commit(" ") })
+        val modeLabel = when (language) {
+            "bn" -> "BN"
+            "en" -> "EN"
+            else -> "BANG"
+        }
+        controls.addView(makeKey(modeLabel, 1f) { cycleLanguage() })
+        controls.addView(makeKey(getString(R.string.key_space), 3f) { commitSpace() })
         controls.addView(makeKey(getString(R.string.key_backspace), 1.3f) { backspace() })
         controls.addView(makeKey(getString(R.string.key_enter), 1.3f) { enter() })
     }
 
-    private fun makeKey(label: String, weight: Float, onClick: () -> Unit): Button =
-        Button(this).apply {
-            text = label
-            textSize = 18f
-            isAllCaps = false
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
-            setOnClickListener { onClick() }
-        }
+    private fun makeKey(label: String, weight: Float, onClick: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 18f
+        isAllCaps = false
+        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
+        setOnClickListener { onClick() }
+    }
 
     private fun onCharacter(raw: String) {
         val value = if (shifted && language == "en") raw.uppercase() else raw
         commit(value)
+    }
+
+    /** In Banglish mode, space transliterates the current roman token to Bengali. */
+    private fun commitSpace() {
+        if (language == "banglish") {
+            val token = currentText().trim().split(Regex("\\s+")).lastOrNull().orEmpty()
+            val bangla = Banglish.toBangla(token)
+            if (token.isNotEmpty() && bangla != token) {
+                currentInputConnection?.deleteSurroundingText(token.length, 0)
+                commit(bangla + " ")
+                return
+            }
+        }
+        commit(" ")
     }
 
     // ---------- editing ----------
@@ -147,10 +198,9 @@ class BanglaVoiceIme : InputMethodService() {
 
     private fun enter() {
         val info = currentInputEditorInfo
-        // Editor action occupies the low 24 bits of imeOptions.
         val action = info?.imeOptions?.and(0x00FFFFFF)
-        if (action != null && action != android.view.inputmethod.EditorInfo.IME_ACTION_NONE &&
-            action != android.view.inputmethod.EditorInfo.IME_ACTION_UNSPECIFIED
+        if (action != null && action != EditorInfo.IME_ACTION_NONE &&
+            action != EditorInfo.IME_ACTION_UNSPECIFIED
         ) {
             currentInputConnection?.performEditorAction(action)
         } else {
@@ -168,6 +218,22 @@ class BanglaVoiceIme : InputMethodService() {
         renderKeys()
     }
 
+    private fun setLanguage(mode: String) {
+        language = mode
+        layer = BanglaKeys.LAYER_LETTERS
+        shifted = false
+        renderKeys()
+        renderDefaultSuggestions()
+    }
+
+    private fun cycleLanguage() {
+        setLanguage(when (language) {
+            "bn" -> "en"
+            "en" -> "banglish"
+            else -> "bn"
+        })
+    }
+
     private fun currentText(): String =
         currentInputConnection?.getExtractedText(ExtractedTextRequest(), 0)?.text?.toString().orEmpty()
 
@@ -178,7 +244,7 @@ class BanglaVoiceIme : InputMethodService() {
         }
     }
 
-    // ---------- suggestion bar ----------
+    // ---------- suggestion bar helpers ----------
 
     private fun barButton(label: String, weight: Float = 1f, onClick: () -> Unit): Button = Button(this).apply {
         text = label
@@ -197,16 +263,18 @@ class BanglaVoiceIme : InputMethodService() {
         suggestionBar.addView(barButton(label, weight, onClick))
     }
 
-    private fun showBarText(message: String) {
-        resetBar()
+    private fun addBarText(message: String, weight: Float = 1f) {
         suggestionBar.addView(TextView(this).apply {
             text = message
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(16, 0, 16, 0)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT,
-            )
+            setPadding(12, 0, 12, 0)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
         })
+    }
+
+    private fun showBarText(message: String) {
+        resetBar()
+        addBarText(message, 6f)
     }
 
     private fun renderDefaultSuggestions() {
@@ -216,23 +284,16 @@ class BanglaVoiceIme : InputMethodService() {
             addBar(word) { commit(word) }
         }
         addBar(getString(R.string.suggestion_ai), 1f) { showAiMenu() }
-        addBar(getString(R.string.suggestion_mic), 1f) { onMicTapped() }
-        addBar(getString(R.string.suggestion_language), 1f) {
-            language = if (language == "bn") "en" else "bn"
-            layer = BanglaKeys.LAYER_LETTERS
-            renderKeys()
-            renderDefaultSuggestions()
-        }
+        addBar(getString(R.string.tool_lang), 1f) { showLanguageMenu() }
     }
 
     private fun showAiMenu() {
         resetBar()
         addBar(getString(R.string.ai_format), 2f) { previewCorrection("format") }
         addBar(getString(R.string.ai_shorter), 2f) { previewCorrection("shorter") }
-        addBar("back", 1f) { renderDefaultSuggestions() }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
     }
 
-    /** Corrections are NEVER applied silently — show original→candidate first. */
     private fun previewCorrection(kind: String) {
         val original = currentText()
         if (original.isBlank()) {
@@ -246,14 +307,10 @@ class BanglaVoiceIme : InputMethodService() {
         }
         pendingText = candidate
         resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.ai_preview_title)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
+        addBarText(getString(R.string.ai_preview_title), 2f)
         addBar("→ " + candidate.take(18), 3f) { }
         addBar(getString(R.string.ai_apply), 1f) { applyPending() }
-        addBar(getString(R.string.ai_cancel), 1f) { renderDefaultSuggestions().also { pendingText = null } }
+        addBar(getString(R.string.ai_cancel), 1f) { pendingText = null; renderDefaultSuggestions() }
     }
 
     private fun applyPending() {
@@ -269,60 +326,85 @@ class BanglaVoiceIme : InputMethodService() {
         Toast.makeText(this, "Applied", Toast.LENGTH_SHORT).show()
     }
 
-    // ---------- voice (consent-gated, system recognizer + Gemini translation) ----------
+    // ---------- language mode menu ----------
 
-    /** Mic tap: require voice consent, then ask which way to translate. */
+    private fun showLanguageMenu() {
+        resetBar()
+        addBarText(getString(R.string.lang_title), 2f)
+        addBar(getString(R.string.lang_bn), 2f) { setLanguage("bn") }
+        addBar(getString(R.string.lang_en), 2f) { setLanguage("en") }
+        addBar(getString(R.string.lang_banglish), 2f) { setLanguage("banglish") }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
+    }
+
+    // ---------- unlimited clipboard ----------
+
+    private fun showClipboardPanel() {
+        val items = ClipboardStore.all()
+        resetBar()
+        addBarText(getString(R.string.clip_title, items.size), 2f)
+        addBar(getString(R.string.clip_copy), 2f) {
+            val text = currentText().trim()
+            if (text.isEmpty()) {
+                showBarText("Nothing to copy")
+            } else {
+                ClipboardStore.copyToSystem(this, text)
+                showClipboardPanel()
+            }
+        }
+        addBar(getString(R.string.clip_clear), 1f) {
+            ClipboardStore.clear()
+            showClipboardPanel()
+        }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
+        for (item in items.take(12)) {
+            addBar(item.text.take(14), 2f) { commit(item.text) }
+        }
+        if (items.size > 12) {
+            addBarText(getString(R.string.clip_more, items.size - 12), 3f)
+        }
+        if (items.isEmpty()) addBarText(getString(R.string.clip_empty), 3f)
+    }
+
+    // ---------- mic: consent → source language → record → text ----------
+
     private fun onMicTapped() {
         if (!SecureStore.voiceConsent(this)) {
             showConsentPrompt()
             return
         }
-        showVoiceDirectionMenu()
+        showVoiceSourceMenu()
     }
 
     private fun showConsentPrompt() {
         resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.voice_consent_needed)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
+        addBarText(getString(R.string.voice_consent_needed), 3f)
         addBar(getString(R.string.btn_enable_short), 1f) {
             SecureStore.setVoiceConsent(this, true)
-            showVoiceDirectionMenu()
+            showVoiceSourceMenu()
         }
         addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
     }
 
-    /** Two-way translation: pick the SOURCE language the user will speak. */
-    private fun showVoiceDirectionMenu() {
+    private fun showVoiceSourceMenu() {
         resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.voice_direction_title)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
-        addBar(getString(R.string.voice_bn_to_en), 2f) { startVoiceForMode("C", "bn") }
-        addBar(getString(R.string.voice_en_to_bn), 2f) { startVoiceForMode("D", "en") }
+        addBarText(getString(R.string.voice_source_title), 2f)
+        addBar(getString(R.string.voice_src_bn), 2f) { startVoiceForSource("bn") }
+        addBar(getString(R.string.voice_src_en), 2f) { startVoiceForSource("en") }
+        addBar(getString(R.string.voice_src_banglish), 2f) { startVoiceForSource("banglish") }
         addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
     }
 
-    private fun startVoiceForMode(mode: String, sourceLanguage: String) {
-        pendingMode = mode
-        startSystemRecognizer(sourceLanguage)
-    }
-
-    private fun startSystemRecognizer(sourceLanguage: String) {
+    private fun startVoiceForSource(source: String) {
+        pendingVoiceSource = source
+        val recognizerLanguage = if (source == "bn") "bn" else "en"
         val callback = PendingIntent.getBroadcast(
-            this,
-            100,
-            Intent(ACTION_VOICE_RESULT),
+            this, 100, Intent(ACTION_VOICE_RESULT),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val intent = Intent(this, VoicePermissionActivity::class.java).apply {
             putExtra(VoicePermissionActivity.EXTRA_CALLBACK, callback)
-            // Source language is the language the user SPEAKS, not the output.
-            putExtra(VoicePermissionActivity.EXTRA_LANGUAGE, sourceLanguage)
+            putExtra(VoicePermissionActivity.EXTRA_LANGUAGE, recognizerLanguage)
         }
         try {
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -331,96 +413,78 @@ class BanglaVoiceIme : InputMethodService() {
         }
     }
 
-    /**
-     * Transcript arrived. Sending it to Gemini is text egress, so it needs the
-     * separate text consent. Translate off the main thread, then preview.
-     */
-    private fun renderVoiceResult(heard: String, mode: String) {
-        if (!SecureStore.textConsent(this)) {
-            showTextConsentGate(heard, mode)
+    /** Speech is now plain text — insert it directly, translate it, or discard. */
+    private fun renderTranscript(text: String) {
+        pendingText = text
+        resetBar()
+        addBarText(getString(R.string.voice_heard, text.take(20)), 3f)
+        addBar(getString(R.string.voice_insert), 1f) { commitIfFocused(text); pendingText = null }
+        addBar(getString(R.string.tool_translate), 1f) { showTranslateMenu(text) }
+        addBar(getString(R.string.btn_discard), 1f) { pendingText = null; renderDefaultSuggestions() }
+    }
+
+    // ---------- translate: BN→EN / EN→BN (Gemini, text-only consent) ----------
+
+    private fun showTranslateMenu(text: String) {
+        if (text.isBlank()) {
+            showBarText("Nothing to translate")
             return
         }
+        pendingTranslateText = text
+        if (!SecureStore.textConsent(this)) {
+            showTranslateConsentGate(text)
+            return
+        }
+        resetBar()
+        addBarText(getString(R.string.translate_title), 2f)
+        addBar(getString(R.string.tr_bn_en), 2f) { runTranslate(text, "C") }
+        addBar(getString(R.string.tr_en_bn), 2f) { runTranslate(text, "D") }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
+    }
+
+    private fun showTranslateConsentGate(text: String) {
+        resetBar()
+        addBarText(getString(R.string.voice_text_consent_needed), 3f)
+        addBar(getString(R.string.btn_enable_short), 1f) {
+            SecureStore.setTextConsent(this, true)
+            showTranslateMenu(text)
+        }
+        addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
+    }
+
+    private fun runTranslate(text: String, mode: String) {
+        pendingTranslateMode = mode
         showBarText(getString(R.string.voice_translating))
         Thread {
-            val result = GeminiVoiceClient.translate(this@BanglaVoiceIme, heard, mode)
+            val result = GeminiVoiceClient.translateText(this@BanglaVoiceIme, text, mode)
             mainHandler.post {
                 when (result) {
                     is GeminiVoiceClient.TranslateResult.Success ->
-                        showTranslationPreview(heard, result.text)
+                        showTranslationPreview(result.text)
                     is GeminiVoiceClient.TranslateResult.Failure ->
-                        showTranslationFailure(heard, result.state)
+                        showTranslationFailure(result.state)
                 }
             }
         }.start()
     }
 
-    /** Text consent is off: offer to enable it or insert only the raw transcript. */
-    private fun showTextConsentGate(heard: String, mode: String) {
-        pendingText = heard
-        resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.voice_text_consent_needed)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
-        addBar(getString(R.string.btn_enable_short), 1f) {
-            SecureStore.setTextConsent(this, true)
-            renderVoiceResult(heard, mode)
-        }
-        addBar(getString(R.string.voice_insert_raw), 1f) {
-            commitIfFocused(heard)
-            pendingText = null
-        }
-        addBar(getString(R.string.btn_discard), 1f) {
-            pendingText = null
-            renderDefaultSuggestions()
-        }
-    }
-
-    /** Never insert silently — always show the final translated text first. */
-    private fun showTranslationPreview(original: String, translated: String) {
+    private fun showTranslationPreview(translated: String) {
         pendingText = translated
         resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.voice_translated_title)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
+        addBarText(getString(R.string.voice_translated_title), 2f)
         addBar("→ " + translated.take(24), 3f) { }
-        addBar(getString(R.string.voice_insert), 1f) {
-            commitIfFocused(translated)
-            pendingText = null
-        }
-        addBar(getString(R.string.btn_discard), 1f) {
-            pendingText = null
-            renderDefaultSuggestions()
-        }
+        addBar(getString(R.string.voice_insert), 1f) { commitIfFocused(translated); pendingText = null }
+        addBar(getString(R.string.btn_discard), 1f) { pendingText = null; renderDefaultSuggestions() }
     }
 
-    /** Real failure state from the provider — no fabricated success. */
-    private fun showTranslationFailure(original: String, state: String) {
-        pendingText = original
+    private fun showTranslationFailure(state: String) {
         resetBar()
-        suggestionBar.addView(TextView(this).apply {
-            text = getString(R.string.voice_translate_failed, state)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(12, 0, 12, 0)
-        })
-        addBar(getString(R.string.voice_insert_raw), 1f) {
-            commitIfFocused(original)
-            pendingText = null
-        }
+        addBarText(getString(R.string.voice_translate_failed, state), 3f)
         addBar(getString(R.string.btn_retry), 1f) {
-            if (SecureStore.textConsent(this)) {
-                renderVoiceResult(original, pendingMode)
-            } else {
-                showTextConsentGate(original, pendingMode)
-            }
+            val text = pendingTranslateText.orEmpty()
+            if (text.isNotEmpty()) runTranslate(text, pendingTranslateMode)
         }
-        addBar(getString(R.string.btn_discard), 1f) {
-            pendingText = null
-            renderDefaultSuggestions()
-        }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
     }
 
     private fun commitIfFocused(text: String) {

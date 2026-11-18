@@ -34,6 +34,16 @@ object GeminiVoiceClient {
         // Translating a transcript sends user text to Gemini, so the separate
         // text-consent toggle must also be on. Neither egress is ever implicit.
         if (!SecureStore.textConsent(context)) return TranslateResult.Failure("text_consent_denied")
+        return request(context, transcript, mode)
+    }
+
+    /** Translate typed/selected text — needs only text consent, never voice consent. */
+    fun translateText(context: Context, text: String, mode: String): TranslateResult {
+        if (!SecureStore.textConsent(context)) return TranslateResult.Failure("text_consent_denied")
+        return request(context, text, mode)
+    }
+
+    private fun request(context: Context, transcript: String, mode: String): TranslateResult {
         val key = SecureStore.readApiKey(context)
         if (key.isBlank()) return TranslateResult.Failure("not_configured")
         if (transcript.isBlank()) return TranslateResult.Failure("empty_input")
