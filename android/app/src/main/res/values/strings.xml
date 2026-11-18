@@ -18,4 +18,23 @@
     <string name="ai_preview_title">Preview change</string>
     <string name="voice_prompt">বলুন…</string>
     <string name="voice_unavailable">Speech recognizer unavailable</string>
+    <string name="main_intro">This app is a real system-wide keyboard. Enable it in Android settings, then switch to it when you type. Offline Bangla/English typing works with no network. AI features are optional and need a Gemini key plus your consent.</string>
+    <string name="btn_enable">Enable keyboard in system settings</string>
+    <string name="btn_picker">Choose active keyboard</string>
+    <string name="consent_heading">Privacy consent</string>
+    <string name="consent_voice">Allow voice input (off by default)</string>
+    <string name="consent_text">Allow text sent to AI (off by default)</string>
+    <string name="status_heading">Status</string>
+    <string name="api_heading">Gemini API key (optional)</string>
+    <string name="api_hint">Paste your API key</string>
+    <string name="btn_save_key">Save key</string>
+    <string name="btn_remove_key">Remove key</string>
+    <string name="btn_show_key">Show key</string>
+    <string name="btn_hide_key">Hide key</string>
+    <string name="btn_test">Test connection</string>
+    <string name="key_saved">Saved (encrypted)</string>
+    <string name="key_removed">Key removed</string>
+    <string name="key_missing">No key saved</string>
+    <string name="key_empty">Enter a key first</string>
+    <string name="testing">connecting…</string>
 </resources>

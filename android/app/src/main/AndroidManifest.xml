@@ -3,8 +3,22 @@
     <!-- Voice capture requires this permission; it is only requested after the
          in-keyboard consent gate is accepted. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Only used by the explicit "Test connection" action in the setup screen.
+         Offline typing never needs or uses the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application android:label="@string/app_name" android:theme="@style/AppTheme">
+        <!-- Launcher / setup screen: an IME alone has no app icon, so without
+             this activity the installed app appears hidden and cannot be opened. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <!-- Real system-wide input method. BIND_INPUT_METHOD is enforced by Android. -->
         <service
             android:name=".BanglaVoiceIme"
