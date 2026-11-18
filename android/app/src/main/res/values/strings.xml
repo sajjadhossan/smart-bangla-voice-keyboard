@@ -37,4 +37,21 @@
     <string name="key_missing">No key saved</string>
     <string name="key_empty">Enter a key first</string>
     <string name="testing">connecting…</string>
+
+    <!-- Two-way voice translation flow -->
+    <string name="voice_consent_needed">Voice needs your consent (off by default)</string>
+    <string name="voice_direction_title">Speak which language?</string>
+    <string name="voice_bn_to_en">বাংলা → English</string>
+    <string name="voice_en_to_bn">English → বাংলা</string>
+    <string name="voice_text_consent_needed">AI translation sends the transcript to Gemini. Allow it?</string>
+    <string name="voice_translating">Translating with Gemini…</string>
+    <string name="voice_translated_title">Translated — insert?</string>
+    <string name="voice_insert">Insert</string>
+    <string name="voice_insert_raw">Insert original</string>
+    <string name="voice_translate_failed">Translation failed: %1$s</string>
+    <string name="btn_enable_short">Enable</string>
+    <string name="btn_not_now">Not now</string>
+    <string name="btn_back">back</string>
+    <string name="btn_discard">Discard</string>
+    <string name="btn_retry">Retry</string>
 </resources>

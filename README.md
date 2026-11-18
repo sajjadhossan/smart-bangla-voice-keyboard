@@ -24,6 +24,7 @@ A real, system-wide multilingual keyboard and Gemini-powered AI writing platform
 | AI special features A–Q | 🔶 Implemented / platform-required | Step 10 — clipboard needs native bridge |
 | Android `InputMethodService` + voice UI | ✅ Implemented | Steps 11–12 |
 | Android launcher/setup screen | ✅ Implemented | device fix 01 — enable IME, consent, API key |
+| Two-way voice translation (BN↔EN) via Gemini | ✅ Implemented | device fix 02 — mic → direction → translate |
 | Android debug APK + signing gate | ✅ Buildable here | Real signed APK; release gated on keystore env secrets |
 | Windows TSF + floating popup + tray + hotkeys | 🔶 Source only · **UNVERIFIED** | Step 13 — no Windows host |
 | macOS InputMethodKit + panel + Keychain | 🔶 Source only · **UNVERIFIED** | Step 14 — no Xcode/macOS |

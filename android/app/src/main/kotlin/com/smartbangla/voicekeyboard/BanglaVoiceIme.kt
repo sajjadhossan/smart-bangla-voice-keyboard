@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognizerIntent
 import android.view.Gravity
 import android.view.KeyEvent
@@ -31,6 +33,10 @@ class BanglaVoiceIme : InputMethodService() {
     private var layer = BanglaKeys.LAYER_LETTERS
     private var shifted = false
     private var pendingText: String? = null
+    // Translation direction for the active voice flow: C = Bangla speech → English,
+    // D = English speech → Bengali. Matches the shared voice-mode vocabulary.
+    private var pendingMode = "C"
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val voiceReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -40,7 +46,7 @@ class BanglaVoiceIme : InputMethodService() {
                 showBarText(getString(R.string.voice_unavailable))
                 return
             }
-            renderVoiceResult(heard)
+            renderVoiceResult(heard, pendingMode)
         }
     }
 
@@ -263,31 +269,50 @@ class BanglaVoiceIme : InputMethodService() {
         Toast.makeText(this, "Applied", Toast.LENGTH_SHORT).show()
     }
 
-    // ---------- voice (consent-gated, real system recognizer) ----------
+    // ---------- voice (consent-gated, system recognizer + Gemini translation) ----------
 
+    /** Mic tap: require voice consent, then ask which way to translate. */
     private fun onMicTapped() {
         if (!SecureStore.voiceConsent(this)) {
             showConsentPrompt()
             return
         }
-        startSystemRecognizer()
+        showVoiceDirectionMenu()
     }
 
     private fun showConsentPrompt() {
         resetBar()
         suggestionBar.addView(TextView(this).apply {
-            text = "Voice needs consent"
+            text = getString(R.string.voice_consent_needed)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(12, 0, 12, 0)
         })
-        addBar("Enable", 1f) {
+        addBar(getString(R.string.btn_enable_short), 1f) {
             SecureStore.setVoiceConsent(this, true)
-            startSystemRecognizer()
+            showVoiceDirectionMenu()
         }
-        addBar("Not now", 1f) { renderDefaultSuggestions() }
+        addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
     }
 
-    private fun startSystemRecognizer() {
+    /** Two-way translation: pick the SOURCE language the user will speak. */
+    private fun showVoiceDirectionMenu() {
+        resetBar()
+        suggestionBar.addView(TextView(this).apply {
+            text = getString(R.string.voice_direction_title)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(12, 0, 12, 0)
+        })
+        addBar(getString(R.string.voice_bn_to_en), 2f) { startVoiceForMode("C", "bn") }
+        addBar(getString(R.string.voice_en_to_bn), 2f) { startVoiceForMode("D", "en") }
+        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
+    }
+
+    private fun startVoiceForMode(mode: String, sourceLanguage: String) {
+        pendingMode = mode
+        startSystemRecognizer(sourceLanguage)
+    }
+
+    private fun startSystemRecognizer(sourceLanguage: String) {
         val callback = PendingIntent.getBroadcast(
             this,
             100,
@@ -296,7 +321,8 @@ class BanglaVoiceIme : InputMethodService() {
         )
         val intent = Intent(this, VoicePermissionActivity::class.java).apply {
             putExtra(VoicePermissionActivity.EXTRA_CALLBACK, callback)
-            putExtra(VoicePermissionActivity.EXTRA_LANGUAGE, language)
+            // Source language is the language the user SPEAKS, not the output.
+            putExtra(VoicePermissionActivity.EXTRA_LANGUAGE, sourceLanguage)
         }
         try {
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -305,19 +331,93 @@ class BanglaVoiceIme : InputMethodService() {
         }
     }
 
-    private fun renderVoiceResult(heard: String) {
+    /**
+     * Transcript arrived. Sending it to Gemini is text egress, so it needs the
+     * separate text consent. Translate off the main thread, then preview.
+     */
+    private fun renderVoiceResult(heard: String, mode: String) {
+        if (!SecureStore.textConsent(this)) {
+            showTextConsentGate(heard, mode)
+            return
+        }
+        showBarText(getString(R.string.voice_translating))
+        Thread {
+            val result = GeminiVoiceClient.translate(this@BanglaVoiceIme, heard, mode)
+            mainHandler.post {
+                when (result) {
+                    is GeminiVoiceClient.TranslateResult.Success ->
+                        showTranslationPreview(heard, result.text)
+                    is GeminiVoiceClient.TranslateResult.Failure ->
+                        showTranslationFailure(heard, result.state)
+                }
+            }
+        }.start()
+    }
+
+    /** Text consent is off: offer to enable it or insert only the raw transcript. */
+    private fun showTextConsentGate(heard: String, mode: String) {
         pendingText = heard
         resetBar()
         suggestionBar.addView(TextView(this).apply {
-            text = "heard: $heard"
+            text = getString(R.string.voice_text_consent_needed)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(12, 0, 12, 0)
         })
-        addBar("Insert", 1f) {
+        addBar(getString(R.string.btn_enable_short), 1f) {
+            SecureStore.setTextConsent(this, true)
+            renderVoiceResult(heard, mode)
+        }
+        addBar(getString(R.string.voice_insert_raw), 1f) {
             commitIfFocused(heard)
             pendingText = null
         }
-        addBar("Discard", 1f) {
+        addBar(getString(R.string.btn_discard), 1f) {
+            pendingText = null
+            renderDefaultSuggestions()
+        }
+    }
+
+    /** Never insert silently — always show the final translated text first. */
+    private fun showTranslationPreview(original: String, translated: String) {
+        pendingText = translated
+        resetBar()
+        suggestionBar.addView(TextView(this).apply {
+            text = getString(R.string.voice_translated_title)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(12, 0, 12, 0)
+        })
+        addBar("→ " + translated.take(24), 3f) { }
+        addBar(getString(R.string.voice_insert), 1f) {
+            commitIfFocused(translated)
+            pendingText = null
+        }
+        addBar(getString(R.string.btn_discard), 1f) {
+            pendingText = null
+            renderDefaultSuggestions()
+        }
+    }
+
+    /** Real failure state from the provider — no fabricated success. */
+    private fun showTranslationFailure(original: String, state: String) {
+        pendingText = original
+        resetBar()
+        suggestionBar.addView(TextView(this).apply {
+            text = getString(R.string.voice_translate_failed, state)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(12, 0, 12, 0)
+        })
+        addBar(getString(R.string.voice_insert_raw), 1f) {
+            commitIfFocused(original)
+            pendingText = null
+        }
+        addBar(getString(R.string.btn_retry), 1f) {
+            if (SecureStore.textConsent(this)) {
+                renderVoiceResult(original, pendingMode)
+            } else {
+                showTextConsentGate(original, pendingMode)
+            }
+        }
+        addBar(getString(R.string.btn_discard), 1f) {
             pendingText = null
             renderDefaultSuggestions()
         }
