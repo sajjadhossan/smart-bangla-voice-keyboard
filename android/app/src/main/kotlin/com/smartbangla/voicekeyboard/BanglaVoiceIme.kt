@@ -23,12 +23,13 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Real system-wide input method.
+ * Real system-wide input method with a dedicated voice assistant mic.
  *
- * Top toolbar (mic pinned top-right): Clipboard · Lang · Translate · Mic.
- * Offline typing works with the network off. Voice capture, clipboard and any
- * Gemini translation require the relevant explicit consent; results are always
- * previewed before insert. No decorative buttons.
+ * Top toolbar (mic pinned top-right): Clipboard · Lang · Tr · Mic.
+ * One mic tap: consent → listen → the transcript's script decides the language
+ * (Bengali Unicode → Bengali, Latin → English); a spoken "অনুবাদ/translate"
+ * command switches to translation, otherwise the speech is returned as text.
+ * Offline typing is unaffected. Nothing is inserted without a preview.
  */
 class BanglaVoiceIme : InputMethodService() {
 
@@ -39,14 +40,11 @@ class BanglaVoiceIme : InputMethodService() {
     private lateinit var btnMic: Button
     private val keyRows = arrayOfNulls<LinearLayout>(4)
 
-    // Typing mode: bn (Bengali script), en (English), banglish (roman → Bengali).
     private var language = "bn"
     private var layer = BanglaKeys.LAYER_LETTERS
     private var shifted = false
     private var pendingText: String? = null
 
-    // Language the user WILL SPEAK into the mic: bn | en | banglish.
-    private var pendingVoiceSource = "bn"
     private var pendingTranslateText: String? = null
     private var pendingTranslateMode = "C"
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -59,9 +57,7 @@ class BanglaVoiceIme : InputMethodService() {
                 showBarText(getString(R.string.voice_unavailable))
                 return
             }
-            // Banglish speech is recognized as romanized text, then converted offline.
-            val shown = if (pendingVoiceSource == "banglish") Banglish.toBangla(heard) else heard
-            renderTranscript(shown)
+            handleAssistantTranscript(heard)
         }
     }
 
@@ -366,14 +362,15 @@ class BanglaVoiceIme : InputMethodService() {
         if (items.isEmpty()) addBarText(getString(R.string.clip_empty), 3f)
     }
 
-    // ---------- mic: consent → source language → record → text ----------
+    // ---------- dedicated voice assistant ----------
 
+    /** One mic: consent → listen → auto-detect language → text or translation. */
     private fun onMicTapped() {
         if (!SecureStore.voiceConsent(this)) {
             showConsentPrompt()
             return
         }
-        showVoiceSourceMenu()
+        startAssistantRecognizer()
     }
 
     private fun showConsentPrompt() {
@@ -381,23 +378,17 @@ class BanglaVoiceIme : InputMethodService() {
         addBarText(getString(R.string.voice_consent_needed), 3f)
         addBar(getString(R.string.btn_enable_short), 1f) {
             SecureStore.setVoiceConsent(this, true)
-            showVoiceSourceMenu()
+            startAssistantRecognizer()
         }
         addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
     }
 
-    private fun showVoiceSourceMenu() {
-        resetBar()
-        addBarText(getString(R.string.voice_source_title), 2f)
-        addBar(getString(R.string.voice_src_bn), 2f) { startVoiceForSource("bn") }
-        addBar(getString(R.string.voice_src_en), 2f) { startVoiceForSource("en") }
-        addBar(getString(R.string.voice_src_banglish), 2f) { startVoiceForSource("banglish") }
-        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
-    }
-
-    private fun startVoiceForSource(source: String) {
-        pendingVoiceSource = source
-        val recognizerLanguage = if (source == "bn") "bn" else "en"
+    /**
+     * The current typing mode is only a HINT to the recognizer; the real
+     * language is decided afterwards from the transcript's script.
+     */
+    private fun startAssistantRecognizer() {
+        val recognizerLanguage = if (language == "bn") "bn" else "en"
         val callback = PendingIntent.getBroadcast(
             this, 100, Intent(ACTION_VOICE_RESULT),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -413,17 +404,52 @@ class BanglaVoiceIme : InputMethodService() {
         }
     }
 
-    /** Speech is now plain text — insert it directly, translate it, or discard. */
-    private fun renderTranscript(text: String) {
+    private fun handleAssistantTranscript(raw: String) {
+        val command = VoiceAssistant.parse(raw)
+        val content = command.cleanText.ifEmpty { raw }
+        val source = VoiceAssistant.detectLanguage(content)
+        if (command.translate) {
+            runAssistantTranslation(content, source, command.target)
+        } else {
+            showAssistantResult(content, source)
+        }
+    }
+
+    /** Plain speech-to-text: the language is shown, then the text is inserted. */
+    private fun showAssistantResult(text: String, source: String) {
         pendingText = text
+        val badge = if (source == "bn") getString(R.string.lang_bn) else getString(R.string.lang_en)
         resetBar()
-        addBarText(getString(R.string.voice_heard, text.take(20)), 3f)
+        addBarText(getString(R.string.assistant_heard, badge, text.take(20)), 3f)
         addBar(getString(R.string.voice_insert), 1f) { commitIfFocused(text); pendingText = null }
-        addBar(getString(R.string.tool_translate), 1f) { showTranslateMenu(text) }
+        addBar(getString(R.string.tool_translate), 1f) { runAssistantTranslation(text, source, null) }
         addBar(getString(R.string.btn_discard), 1f) { pendingText = null; renderDefaultSuggestions() }
     }
 
-    // ---------- translate: BN→EN / EN→BN (Gemini, text-only consent) ----------
+    /** Translation is egress: gate on text consent, then use real Gemini. */
+    private fun runAssistantTranslation(text: String, source: String, target: String?) {
+        val mode = VoiceAssistant.direction(source, target)
+        withTextConsent {
+            pendingTranslateText = text
+            runTranslate(text, mode)
+        }
+    }
+
+    private fun withTextConsent(action: () -> Unit) {
+        if (!SecureStore.textConsent(this)) {
+            resetBar()
+            addBarText(getString(R.string.voice_text_consent_needed), 3f)
+            addBar(getString(R.string.btn_enable_short), 1f) {
+                SecureStore.setTextConsent(this, true)
+                action()
+            }
+            addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
+            return
+        }
+        action()
+    }
+
+    // ---------- translate menu (typed text / manual Tr button) ----------
 
     private fun showTranslateMenu(text: String) {
         if (text.isBlank()) {
@@ -431,25 +457,13 @@ class BanglaVoiceIme : InputMethodService() {
             return
         }
         pendingTranslateText = text
-        if (!SecureStore.textConsent(this)) {
-            showTranslateConsentGate(text)
-            return
+        withTextConsent {
+            resetBar()
+            addBarText(getString(R.string.translate_title), 2f)
+            addBar(getString(R.string.tr_bn_en), 2f) { runTranslate(text, "C") }
+            addBar(getString(R.string.tr_en_bn), 2f) { runTranslate(text, "D") }
+            addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
         }
-        resetBar()
-        addBarText(getString(R.string.translate_title), 2f)
-        addBar(getString(R.string.tr_bn_en), 2f) { runTranslate(text, "C") }
-        addBar(getString(R.string.tr_en_bn), 2f) { runTranslate(text, "D") }
-        addBar(getString(R.string.btn_back), 1f) { renderDefaultSuggestions() }
-    }
-
-    private fun showTranslateConsentGate(text: String) {
-        resetBar()
-        addBarText(getString(R.string.voice_text_consent_needed), 3f)
-        addBar(getString(R.string.btn_enable_short), 1f) {
-            SecureStore.setTextConsent(this, true)
-            showTranslateMenu(text)
-        }
-        addBar(getString(R.string.btn_not_now), 1f) { renderDefaultSuggestions() }
     }
 
     private fun runTranslate(text: String, mode: String) {

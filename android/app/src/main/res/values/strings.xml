@@ -85,4 +85,7 @@
     <string name="translate_title">Translate text</string>
     <string name="tr_bn_en">বাংলা → English</string>
     <string name="tr_en_bn">English → বাংলা</string>
+
+    <!-- Dedicated voice assistant -->
+    <string name="assistant_heard">%1$s · %2$s</string>
 </resources>
