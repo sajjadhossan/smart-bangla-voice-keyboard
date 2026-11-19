@@ -17,6 +17,7 @@ object ClipboardStore {
     data class Item(val text: String, val time: Long)
 
     private const val FILE = "clipboard_history.json"
+    private const val PINNED_FILE = "clipboard_pinned.json"
     private var appContext: Context? = null
 
     fun init(context: Context) {
@@ -42,8 +43,45 @@ object ClipboardStore {
         file()?.let { readLocked(it) } ?: emptyList()
     }
 
+    /** Items pinned by the user, kept in a separate file so old history still loads. */
+    fun pinned(): Set<String> = synchronized(this) {
+        val target = appContext?.let { File(it.filesDir, PINNED_FILE) } ?: return emptySet()
+        if (!target.exists()) return emptySet()
+        val raw = runCatching { target.readText() }.getOrNull() ?: return emptySet()
+        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptySet()
+        val result = mutableSetOf<String>()
+        for (index in 0 until array.length()) {
+            val value = array.optString(index, "")
+            if (value.isNotEmpty()) result.add(value)
+        }
+        result
+    }
+
+    fun isPinned(text: String): Boolean = text in pinned()
+
+    /** Pinned items first (still newest-first inside each group). */
+    fun allSorted(): List<Item> {
+        val pinnedValues = pinned()
+        val (pinnedItems, rest) = all().partition { it.text in pinnedValues }
+        return pinnedItems + rest
+    }
+
+    fun togglePin(text: String) {
+        synchronized(this) {
+            val target = appContext?.let { File(it.filesDir, PINNED_FILE) } ?: return
+            val values = pinned().toMutableSet()
+            if (!values.add(text)) values.remove(text)
+            val array = JSONArray()
+            for (value in values) array.put(value)
+            target.writeText(array.toString())
+        }
+    }
+
     fun clear() {
-        synchronized(this) { file()?.writeText("[]") }
+        synchronized(this) {
+            file()?.writeText("[]")
+            appContext?.let { File(it.filesDir, PINNED_FILE) }?.writeText("[]")
+        }
     }
 
     fun removeAt(index: Int) {
@@ -51,8 +89,18 @@ object ClipboardStore {
             val target = file() ?: return
             val items = readLocked(target).toMutableList()
             if (index in items.indices) {
-                items.removeAt(index)
+                val removed = items.removeAt(index)
                 writeLocked(target, items)
+                val pinTarget = appContext?.let { File(it.filesDir, PINNED_FILE) }
+                if (pinTarget != null && removed.text in pinned()) {
+                    val values = JSONArray(pinTarget.readText())
+                    val kept = JSONArray()
+                    for (i in 0 until values.length()) {
+                        val value = values.optString(i, "")
+                        if (value != removed.text) kept.put(value)
+                    }
+                    pinTarget.writeText(kept.toString())
+                }
             }
         }
     }

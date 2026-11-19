@@ -9,7 +9,7 @@
     android:paddingBottom="4dp">
 
     <!-- Top toolbar. The mic is pinned to the far RIGHT (top-right of the keyboard)
-         via the weight-1 spacer before it. All four buttons are wired in BanglaVoiceIme. -->
+         via the weight-1 spacer before it. Every button is wired in BanglaVoiceIme. -->
     <LinearLayout
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -52,6 +52,17 @@
             android:textAllCaps="false"
             android:text="@string/tool_translate" />
 
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:textSize="12sp"
+            android:textAllCaps="false"
+            android:text="@string/tool_settings" />
+
         <View
             android:layout_width="0dp"
             android:layout_height="1dp"
@@ -73,6 +84,7 @@
 
     <!-- Suggestion bar: word / transliteration suggestions + AI + language -->
     <HorizontalScrollView
+        android:id="@+id/suggestionScroll"
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:scrollbars="none"
@@ -86,10 +98,40 @@
 
     <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#DDDDDD" />
 
+    <!-- Always-visible number row ABOVE the letters. Bangla digits in BN mode,
+         Latin digits in EN/Banglish mode. Populated in BanglaVoiceIme.renderKeys(). -->
+    <LinearLayout
+        android:id="@+id/keyRowNumbers"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:background="#E8EAF6" />
+
     <!-- Four key rows. Buttons are added programmatically from BanglaKeys so the
          layout stays declarative and adapts to portrait/landscape widths. -->
     <LinearLayout android:id="@+id/keyRow1" android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" />
     <LinearLayout android:id="@+id/keyRow2" android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" />
     <LinearLayout android:id="@+id/keyRow3" android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" />
     <LinearLayout android:id="@+id/keyRow4" android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" />
+
+    <!-- Vertical panel used by the clipboard list and the full settings screen.
+         It replaces the suggestion bar + key rows while open, so clips appear as
+         a downward, scrollable list with pinned items at the top. -->
+    <ScrollView
+        android:id="@+id/panelScroll"
+        android:layout_width="match_parent"
+        android:layout_height="210dp"
+        android:scrollbars="vertical"
+        android:background="#FFFFFF"
+        android:visibility="gone">
+        <LinearLayout
+            android:id="@+id/panelList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp" />
+    </ScrollView>
 </LinearLayout>

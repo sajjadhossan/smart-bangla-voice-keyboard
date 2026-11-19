@@ -60,6 +60,7 @@
     <string name="tool_lang">Lang</string>
     <string name="tool_translate">Tr</string>
     <string name="tool_mic">🎤 mic</string>
+    <string name="tool_settings">⚙ Set</string>
 
     <!-- Language / typing mode -->
     <string name="lang_title">Language mode</string>
@@ -88,4 +89,34 @@
 
     <!-- Dedicated voice assistant -->
     <string name="assistant_heard">%1$s · %2$s</string>
+
+    <!-- Vertical clipboard list -->
+    <string name="clip_pin">📌</string>
+    <string name="clip_unpin">📌✓</string>
+    <string name="clip_paste">Insert</string>
+    <string name="clip_remove">✕</string>
+    <string name="clip_pinned_heading">Pinned</string>
+    <string name="clip_recent_heading">Recent</string>
+
+    <!-- Full settings screen inside the keyboard -->
+    <string name="settings_title">Settings · সেটিংস</string>
+    <string name="settings_section_language">Language / ভাষা</string>
+    <string name="settings_section_typing">Typing / টাইপিং</string>
+    <string name="settings_section_privacy">Privacy / গোপনীয়তা</string>
+    <string name="settings_section_ai">Gemini / AI</string>
+    <string name="settings_section_clipboard">Clipboard / ক্লিপবোর্ড</string>
+    <string name="settings_section_about">About / সম্পর্কে</string>
+    <string name="settings_current">Current: %1$s</string>
+    <string name="settings_number_row">Number row above letters</string>
+    <string name="settings_voice_consent">Voice consent (microphone)</string>
+    <string name="settings_text_consent">Text consent (send to AI)</string>
+    <string name="settings_api_status">API key: %1$s</string>
+    <string name="settings_api_saved">saved (encrypted)</string>
+    <string name="settings_api_missing">not saved</string>
+    <string name="settings_api_hint">Gemini API key</string>
+    <string name="settings_banglish_note">Banglish converts as you type — ভালো/বাংলা</string>
+    <string name="settings_about_text">Smart Bangla Voice Keyboard · v1.3.0. Offline typing works with no network. Voice transcription is on-device; AI translation needs a key, consent and internet.</string>
+    <string name="settings_on">ON</string>
+    <string name="settings_off">OFF</string>
+    <string name="settings_open">Open</string>
 </resources>

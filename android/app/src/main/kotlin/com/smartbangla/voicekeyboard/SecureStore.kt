@@ -22,6 +22,8 @@ object SecureStore {
     private const val PREF_API_KEY = "gemini_api_key"
     private const val PREF_CONSENT = "voice_consent"
     private const val PREF_TEXT_CONSENT = "text_consent"
+    private const val PREF_LANGUAGE = "language_mode"
+    private const val PREF_NUMBER_ROW = "number_row"
 
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -90,5 +92,21 @@ object SecureStore {
 
     fun setTextConsent(context: Context, granted: Boolean) {
         prefs(context).edit().putBoolean(PREF_TEXT_CONSENT, granted).apply()
+    }
+
+    /** Remembered typing mode so the keyboard opens in the user's language. */
+    fun languageMode(context: Context): String =
+        prefs(context).getString(PREF_LANGUAGE, "bn") ?: "bn"
+
+    fun setLanguageMode(context: Context, mode: String) {
+        prefs(context).edit().putString(PREF_LANGUAGE, mode).apply()
+    }
+
+    /** The always-visible number row above the letters is on by default. */
+    fun numberRowVisible(context: Context): Boolean =
+        prefs(context).getBoolean(PREF_NUMBER_ROW, true)
+
+    fun setNumberRowVisible(context: Context, visible: Boolean) {
+        prefs(context).edit().putBoolean(PREF_NUMBER_ROW, visible).apply()
     }
 }

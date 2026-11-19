@@ -27,6 +27,7 @@ A real, system-wide multilingual keyboard and Gemini-powered AI writing platform
 | Two-way voice translation (BN↔EN) via Gemini | ✅ Implemented | device fix 02 — mic → direction → translate |
 | Top-right mic + unlimited clipboard + language modes + translate menu | ✅ Implemented | device fix 03 — toolbar |
 | Dedicated voice assistant (auto language + spoken translate command) | ✅ Implemented | device fix 04 — VoiceAssistant |
+| Number row above letters + vertical pinned clipboard + full settings + real-time Banglish | ✅ Implemented | device fix 05 — panel UI / SecureStore |
 | Android debug APK + signing gate | ✅ Buildable here | Real signed APK; release gated on keystore env secrets |
 | Windows TSF + floating popup + tray + hotkeys | 🔶 Source only · **UNVERIFIED** | Step 13 — no Windows host |
 | macOS InputMethodKit + panel + Keychain | 🔶 Source only · **UNVERIFIED** | Step 14 — no Xcode/macOS |
